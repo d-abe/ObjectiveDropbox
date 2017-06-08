@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
 #   * Think: What does it do? Why did you write it? What is the focus?
 #   * Try to keep it short, snappy and to the point.
 #   * Write the description between the DESC delimiters below.
-#   * Finally, don't worry about the indent, CocoaPods strips it!  
+#   * Finally, don't worry about the indent, CocoaPods strips it!
   s.description      = <<-DESC
                        ObjectiveDrobpoox contains all necessary classes for working with Dropbox using Objectve-C on iOS.
                        Cocoapods installation supports iOS 8.0 and above. If you need iOS 7 support, copy all ObjectiveDrobpox files to your project and add WebKit as optional framework.
@@ -24,14 +24,14 @@ Pod::Spec.new do |s|
   s.homepage         = "https://github.com/zlib/ObjectiveDropbox"
   s.license          = 'MIT'
   s.author           = { "Mikhail Motyzhenkov" => "m.motyzhenkov@gmail.com" }
-  s.source           = { :git => "https://github.com/zlib/ObjectiveDropbox.git", :tag => s.version.to_s }
+  s.source           = { :git => "https://github.com/d-abe/ObjectiveDropbox.git", :tag => s.version.to_s }
 
-  s.platform     = :ios, '8.0'
+  s.platform     = :ios, '7.0'
   s.requires_arc = true
 
   s.source_files = 'Pod/Classes/**/*'
   s.resource_bundles = {
-    
+
   }
 
   s.public_header_files = 'Pod/Classes/**/*.h'
