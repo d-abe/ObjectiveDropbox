@@ -142,25 +142,30 @@ static NSString * const keyErrorMessage = @"error_summary";
     return url;
 }
 
+- (NSDictionary*)getAuthorizationHeader
+{
+    return @{@"Authorization": _authorization};
+}
+
 - (NSDictionary *)getRpcHeaders
 {
     return @{@"Content-Type": @"application/json",
-             @"Authorization": _authorization};
+            @"Authorization": _authorization};
 }
 
 - (NSDictionary *)getUploadHeadersWithParams:(NSDictionary *)params
 {
     NSString *jsonString = [DropboxHttpHelper jsonStringWithDictionary:params];
     return @{@"Content-Type": @"application/octet-stream",
-             @"Authorization": _authorization,
-             @"Dropbox-API-Arg": jsonString};
+            @"Authorization": _authorization,
+            @"Dropbox-API-Arg": jsonString};
 }
 
 - (NSDictionary *)getDownloadHeadersWithParams:(NSDictionary *)params
 {
     NSString *jsonString = [DropboxHttpHelper jsonStringWithDictionary:params];
     return @{@"Authorization": _authorization,
-             @"Dropbox-API-Arg": jsonString};
+            @"Dropbox-API-Arg": jsonString};
 }
 
 - (NSData *)convertDictionary:(NSDictionary * _Nonnull)dic toJsonWithFailBlock:(nullable ErrorBlock)failBlock
@@ -205,12 +210,18 @@ static NSString * const keyErrorMessage = @"error_summary";
 
 #pragma mark - RPC
 
-- (void)rpcEndpointWithRoute:(NSString * _Nonnull)route params:(NSDictionary * _Nonnull)dic succcessWithRawData:(nullable CompletionBlockWithHeadersAndBody)successBlock fail:(nullable ErrorBlock)failBlock
+- (void)rpcEndpointWithRoute:(NSString * _Nonnull)route params:(NSDictionary * _Nullable)dic succcessWithRawData:(nullable CompletionBlockWithHeadersAndBody)successBlock fail:(nullable ErrorBlock)failBlock
 {
-    NSData *content = [DropboxHttpHelper jsonDataWithDictionary:dic];
-    NSDictionary *headers = [self getRpcHeaders];
+    NSData *content = nil;
+    NSDictionary *headers = nil;
+    if(dic) {
+        content = [DropboxHttpHelper jsonDataWithDictionary:dic];
+        headers = [self getRpcHeaders];
+    } else {
+        headers = [self getAuthorizationHeader];
+    }
     NSURL *url = [self urlWithRpcMethod:route];
-    
+
     NSURLRequest *request = [DropboxHttpHelper createRequestWithHttpHeaders:headers url:url content:content];
     NSURLSessionDataTask *task = [self.dataSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error)
     {
@@ -250,7 +261,7 @@ static NSString * const keyErrorMessage = @"error_summary";
 
 - (void)rpcEndpointWithRoute:(NSString *)route param:(id<DictionarySerializer>)arg resultType:(Class<DictionaryParser> _Nullable)resultType parseManager:(Class<DictionaryParseManager> _Nullable)parseManager success:(void (^)(id<DictionaryParser> _Nullable))successBlock fail:(ErrorBlock)failBlock
 {
-    NSDictionary *dic = arg ? [arg dictionaryFromParams] : @{};
+    NSDictionary *dic = arg ? [arg dictionaryFromParams] : nil;
     [self rpcEndpointWithRoute:route params:dic succcessWithRawData:^(NSDictionary * _Nullable headers, NSData * _Nullable data) {
         [DropboxHttpHelper convertJsonBodyWithData:data outputType:[NSDictionary class] toCompletionBlock:^(id _Nonnull output) {
             id result;
@@ -273,7 +284,7 @@ static NSString * const keyErrorMessage = @"error_summary";
             }
             [self checkParseResult:result success:successBlock fail:failBlock];
         } withFailBlock:failBlock];
-        
+
     } fail:failBlock];
 }
 
@@ -331,7 +342,7 @@ static NSString * const keyErrorMessage = @"error_summary";
     NSURL *url = [self urlWithUploadMethod:route];
     NSURLRequest *request = [DropboxHttpHelper createRequestWithHttpHeaders:headers url:url content:nil];
     NSURLSessionUploadTask *task = [self.backgroundSession uploadTaskWithRequest:request fromFile:fileUrl];
-    
+
     DropboxUploadTask *uploadTask = [self.sessionDelegate addUploadTask:task session:self.backgroundSession successHandler:^(NSDictionary *headers, NSData * _Nullable outputData, NSInteger statusCode) {
         [self checkDownloadResultWithStatusCode:statusCode headers:headers outputData:outputData resultType:resultType success:successBlock fail:failBlock];
     } progressHandler:progressBlock failHandler:^(NSString *errorSummary) {
@@ -374,8 +385,8 @@ static NSString * const keyErrorMessage = @"error_summary";
     {
         [DropboxHttpHelper handleDropboxRequestErrorWithStatusCode:statusCode outputContent:jsonData outputHeadersDic:headers errorBlock:failBlock];
         return;
-    }    
-    
+    }
+
     NSError *error;
     if (jsonData)
     {
@@ -390,7 +401,7 @@ static NSString * const keyErrorMessage = @"error_summary";
         }
         id meta = [[(Class)resultType alloc] initWithDictionary:dic];
         BOOL ok = [self checkParseResult:meta fail:failBlock];
-        
+
         if (ok)
         {
             successBlock(meta);
@@ -412,7 +423,7 @@ static NSString * const keyErrorMessage = @"error_summary";
     NSURL *url = [self urlWithDownloadMethod:route];
     NSURLRequest *request = [DropboxHttpHelper createRequestWithHttpHeaders:headers url:url content:nil];
     NSURLSessionDownloadTask *task = [self.backgroundSession downloadTaskWithRequest:request];
-    
+
     DropboxDownloadTask *downloadTask = [self.sessionDelegate addDownloadTask:task session:self.backgroundSession destinationUrl:destUrl successHandler:^(NSDictionary *headers, NSInteger statusCode) {
         [self checkDownloadResultWithStatusCode:statusCode headers:headers outputData:nil resultType:resultType success:successBlock fail:failBlock];
     } progressHandler:progressBlock failHandler:^(NSString *errorSummary) {
@@ -427,7 +438,7 @@ static NSString * const keyErrorMessage = @"error_summary";
 + (void)handleDropboxRequestErrorWithStatusCode:(NSInteger)statusCode outputContent:(NSData * _Nullable)outputContent outputHeadersDic:(NSDictionary * _Nullable)outputHeadersDic errorBlock:(nullable ErrorBlock)errorBlock
 {
     if (!errorBlock) return;
-    
+
     __block DropboxError *dropboxError;
     NSError *error;
     NSDictionary *bodyDic;
@@ -435,7 +446,7 @@ static NSString * const keyErrorMessage = @"error_summary";
     {
         bodyDic = [NSJSONSerialization JSONObjectWithData:outputContent options:NSJSONReadingMutableContainers error:&error];
     }
-    
+
     NSString *errorSummary;
     if (bodyDic)
     {
@@ -445,7 +456,7 @@ static NSString * const keyErrorMessage = @"error_summary";
     {
         errorSummary = [[NSString alloc] initWithData:outputContent encoding:NSUTF8StringEncoding];
     }
-    
+
     // Bad input parameter
     if (statusCode == 400)
     {
@@ -453,28 +464,28 @@ static NSString * const keyErrorMessage = @"error_summary";
         errorSummary = [self errorSummaryWithSummary:errorSummary defaultMessage:defaultMessage];
         dropboxError = [[DropboxErrorBadInputParameter alloc] initWithErrorSummary:errorSummary];
     }
-    // Bad or expired token
+        // Bad or expired token
     else if (statusCode == 401)
     {
         NSString *defaultMessage = @"Bad or expired token";
         errorSummary = [self errorSummaryWithSummary:errorSummary defaultMessage:defaultMessage];
         dropboxError = [[DropboxErrorBadOrExpiredToken alloc] initWithErrorSummary:errorSummary ? errorSummary : defaultMessage];
     }
-    // Endpoint-specific error
+        // Endpoint-specific error
     else if (statusCode == 409)
     {
         NSString *defaultMessage = @"Endpoint-specific error";
         errorSummary = [self errorSummaryWithSummary:errorSummary defaultMessage:defaultMessage];
         dropboxError = [[DropboxErrorEndpointSpecific alloc] initWithErrorSummary:errorSummary ? errorSummary : defaultMessage];
     }
-    // Too many requests
+        // Too many requests
     else if (statusCode == 429)
     {
         if (outputHeadersDic)
         {
             NSString *retryAfter = outputHeadersDic[@"Retry-After"];
             double retryAfterSeconds = retryAfter.doubleValue;
-            
+
             NSString *defaultMessage = [NSString stringWithFormat:@"Too many requests. Retry after %i seconds", (int)retryAfterSeconds];
             errorSummary = [self errorSummaryWithSummary:errorSummary defaultMessage:defaultMessage];
             dropboxError = [[DropboxErrorTooManyRequests alloc] initWithErrorSummary:errorSummary retryAfterSeconds:retryAfterSeconds];
@@ -484,19 +495,19 @@ static NSString * const keyErrorMessage = @"error_summary";
             dropboxError = [[DropboxError alloc] initWithErrorSummary:@"Too many requests. Try again later."];
         }
     }
-    // An error occurred on the Dropbox servers
+        // An error occurred on the Dropbox servers
     else if (statusCode >= 500 && statusCode < 600)
     {
         NSString *defaultMessage = @"An error occurred on the Dropbox servers";
         errorSummary = [self errorSummaryWithSummary:errorSummary defaultMessage:defaultMessage];
         dropboxError = [[DropboxErrorDropboxServers alloc] initWithErrorSummary:errorSummary];
     }
-    // Unknown error
+        // Unknown error
     else
     {
         dropboxError = [[DropboxError alloc] initWithErrorSummary:errorSummary ? errorSummary : @"Unknown error"];
     }
-    
+
     errorBlock(dropboxError);
 }
 
