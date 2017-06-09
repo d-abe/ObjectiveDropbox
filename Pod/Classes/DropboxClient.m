@@ -177,6 +177,10 @@ NSString * const kAccount = @"ObjectiveDropbox default account";
 
 - (void)setAccessToken:(NSString *)accessToken
 {
+    if(accessToken == nil) {
+        _accessToken = nil;
+        [self removeTokenFromKeychain];
+    }
     if (accessToken == _accessToken || accessToken == nil) return;
     
     @synchronized (self) {
